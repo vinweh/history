@@ -103,7 +103,7 @@ def main():
     history_db = os.path.join(os.environ['HOME'], browser_profile_path, "History")
     logging.info("Loading history DB: %s", history_db)
     h = HistoryDb(history_db)
-    h.load(limit=20)
+    h.get_urls(limit=20) # set your limit to something sane, default is 1000
 
     predictions = classify(h.rows)
     # write to stdout
