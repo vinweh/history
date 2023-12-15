@@ -1,7 +1,6 @@
 
 import os
 import sys
-import logging
 from contextlib import closing
 import openai
 
@@ -9,25 +8,12 @@ from historydb import HistoryDb
 from utils import num_tokens_for_message
 
 
-log_file = "./log.txt"
-format = '%(asctime)s %(message)s'
-logging.basicConfig(level=logging.DEBUG, filename=log_file,
-                    format=format,
-                    filemode='w')
-console = logging.StreamHandler()
-console.setLevel(logging.INFO)
-formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
-console.setFormatter(formatter)
-logging.getLogger('').addHandler(console)
-
-
-
 def classify(history_items):
     """Very naively classify the history items (url/title pairs) and provide confidence
     """
     openai.api_key = os.getenv("OPENAI_API_KEY")
     model = os.getenv("OPENAI_MODEL")
-    logging.info("Using model %s", model)
+    print(f"Using model {model}")
     
    
     system_content = r"""You are a content classifier. 
@@ -59,7 +45,7 @@ def classify(history_items):
     num_tokens = 0
     max_tokens = 2000
 
-    logging.info("Rows found %i", len(history_items))
+    print(f"Rows found {len(history_items)}")
     message = {"role": "system", "content": system_content}
 
     num_tokens += num_tokens_for_message(message, model)
@@ -67,15 +53,16 @@ def classify(history_items):
     
     for index, row in enumerate(history_items):
         
-         content = "URL: %s, TITLE: %s" % row
+         url, title = row
+         content = f"URL: {url}, TITLE: {title}"
          message = {"role" : "user", "content" : content}
          num_tokens += num_tokens_for_message(message, model)
 
          if num_tokens <= max_tokens:
              messages.append(message)
-             logging.info("Added row %i", index)
+             
          else:
-            logging.info("Token limit reached at %i" , index)
+            print(f"Token limit reached at {index}")
             
             response = openai.ChatCompletion.create(
                     model = model
@@ -88,27 +75,33 @@ def classify(history_items):
             num_tokens = num_tokens_for_message(message, model) # count from the last msg
             messages = []
             messages.append(message)
-            logging.info("Added row %i", index)
-
-
+  
     messages.append({"role": "user", "content" : "ALL SENT"})
     response = openai.ChatCompletion.create(model=model, messages=messages)
     final_response = response.choices[0].message["content"].strip()
     responses.append(final_response)
     return responses
 
-def main():
-
+def get_urls(limit):
+    
     browser_profile_path  = os.getenv("EDGE_BROWSER_PROFILE_PATH")
     history_db = os.path.join(os.environ['HOME'], browser_profile_path, "History")
-    logging.info("Loading history DB: %s", history_db)
+    
+    print("Attempt loading history DB {history_db}")
     h = HistoryDb(history_db)
-    h.get_urls(limit=20) # set your limit to something sane, default is 1000
+    urls = h.get_urls(limit=limit)
+    return urls
+    
+def main():
 
-    predictions = classify(h.rows)
-    # write to stdout
-    for p in predictions:
-        sys.stdout.write("%s\n" % p)
+    urls = get_urls(limit=10) #increase limit to comfort level
+    if urls:
+       # write predictions to stdout, do something smarter later
+        predictions = classify(urls)
+        for p in predictions:
+            sys.stdout.write("%s\n" % p)
+    else:
+        print(f"No URLs to classify. Check log for errors.")
 
 
 if __name__ == "__main__":
