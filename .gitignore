@@ -12,4 +12,5 @@ __pycache__/
 # s'more 
 
 /log.txt
+/classifications.json
 *.DS_Store

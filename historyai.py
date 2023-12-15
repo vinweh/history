@@ -44,11 +44,7 @@ def classify(history_items):
         "Category" : "Sports",
         "Confidence Level" : "High" },
     """
-    #Title: Top 10 goals in La Liga in 2023
-    #Url: https://www.sportskeeda.com/football/la-liga-top-10-goalscorers-all-time
-    #Category: Sports
-    #Confidence Level: High
-
+    
     messages = []
     responses = []
     num_tokens = 0
