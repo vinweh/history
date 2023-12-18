@@ -40,6 +40,8 @@ def classify(history_items):
             # We've reached already reached our token limit
             print(f"Token limit reached at {index}")
             # let's first get an intermediate response before moving on with this message
+            msg_count = len(messages)
+            print(f"Sending {msg_count} messages to OpenAI...")
             response = client.chat.completions.create(
                      model = model
                     ,temperature=temperature
@@ -62,6 +64,8 @@ def classify(history_items):
     num_tokens += num_tokens_for_message(all_sent_message, model)
     messages.append(all_sent_message)
     # get the last response (which is also the first if token limit was never reached)
+    msg_count = len(messages)
+    print(f"Sending {msg_count} messages to OpenAI...")
     response = client.chat.completions.create(
                     model = model
                     ,temperature=temperature
@@ -89,23 +93,27 @@ def get_urls(limit):
     urls = h.get_urls(limit=limit)
     return urls
 
-   
-def main():
-    """The main train"""
+def write_to_csv(csv_file, predictions, sep=","):
+    """"""
     sep = ","
     header = ["\"Title\"","\"Url\"", "\"Category\"","\"Confidence Level\""]
-    urls = get_urls(limit=100) #decrease or increase limit to comfort level
+    with open(csv_file, "w") as f:
+        f.write(sep.join(header))
+        f.write("\n")    
+        for idx, p in enumerate(predictions):
+            if not p.endswith("\n"):
+                p = "".join([p, "\n"])
+            f.write(p)
+       
+def main():
+    """The main train"""
+    
+    csv_file = "classifications.csv"
+    urls = get_urls(limit=5) # decrease or increase limit to comfort level
     if urls:
        # write predictions to csv file, do something smarter later
-        predictions = classify(urls)        
-        with open("classifications.csv", "w") as f:
-            f.write(sep.join(header))
-            f.write("\n")    
-            for idx, p in enumerate(predictions):
-                if not p.endswith("\n"):
-                    p = "".join([p, "\n"])
-                f.write(p)
-                
+        predictions = classify(urls)
+        write_to_csv(csv_file, predictions)       
     else:
         print(f"No URLs to classify. Check log for errors.")
 

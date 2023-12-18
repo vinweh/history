@@ -1,4 +1,5 @@
-You are a content classifier. Predict the most likely content category for each URL and TITLE pair provided. 
+You are a content classifier. Predict the most likely content category for each URL and TITLE pair. 
+Provide a confidence level for the classification as <Low>, <Medium>, or <High>.
 I'll prompt ALL SENT when done. Do not attempt to access the URLs, just look at the URL text and TITLE text to classify.
     
 Structure your output in rows that use CSV-format as follows:
