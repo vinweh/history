@@ -12,38 +12,14 @@ from utils import num_tokens_for_message
 def classify(history_items):
     """Very naively classify the history items (url/title pairs) and provide confidence
     """
-    openai.api_key = os.getenv("OPENAI_API_KEY")
+    client = openai.OpenAI()
+
+    #openai.api_key = os.getenv("OPENAI_API_KEY")
     model = os.getenv("OPENAI_MODEL")
     print(f"Using model {model}")
     
    
-    system_content = r"""You are a content classifier. 
-    Predict the most likely content category for each URL and TITLE pair provided. I'll prompt ALL SENT when done. 
-    Do not attempt to access the URLs, just look at the URL text and TITLE text to classify.
-    
-    Structure your output in JSON as follows
-    ===================================
-    {  
-        "Title" : "<TITLE>",
-        "Url" : "<URL>",
-        "Category" : "<CATEGORY>",
-        "Confidence Level" : "<CONFIDENCE LEVEL>"
-    }
-
-    Separate each prediction using ","
-
-    For example, I will provide you with the following information to classify: 
-
-    TITLE: Top 10 La Liga goalscorers of all time
-    URL: https://www.sportskeeda.com/football/la-liga-top-10-goalscorers-all-time
-
-    and you will responds in JSON format as follows:
-
-    {   "Title" : "Top 10 goals in La Liga in 2023",
-        "Url" : "https://www.sportskeeda.com/football/la-liga-top-10-goalscorers-all-time",
-        "Category" : "Sports",
-        "Confidence Level" : "High" },
-    """
+    system_content = open("./system-prompt-csv.txt").read()
     
     messages = []
     responses = []
@@ -67,24 +43,28 @@ def classify(history_items):
              messages.append(message)
              
          else:
-            # We've reached token limit
+            # We've reached already reached our token limit
             print(f"Token limit reached at {index}")
-            
-            response = openai.ChatCompletion.create(
-                    model = model
+            # let's first get an intermediate response before moving on with this message
+            response = client.ChatCompletion.create(
+                     model = model
                     ,temperature=0.6
                     ,messages=messages
                     ,response_format={"type" : "text"}
                 )
-            
+            # grab the contents of that response and append it to the responses list
             r = response.choices[0].message['content'].strip()
             responses.append(r)
-            num_tokens = num_tokens_for_message(message, model) # count from the last msg
+            num_tokens = num_tokens_for_message(message, model) # count from the last message that ddn't make it
+            #reset for the the next batch of messages and append
             messages = []
+            messages.append({"role": "system", "content": system_content})
             messages.append(message)
   
+    # no more messages to append
     messages.append({"role": "user", "content" : "ALL SENT"})
-    response = openai.ChatCompletion.create(
+    # get the last response (which is also the first if token limit was never reached)
+    response = client.ChatCompletion.create(
                     model = model
                     ,temperature=0.6
                     ,messages=messages
@@ -95,7 +75,7 @@ def classify(history_items):
     if not model_used:
         model_used = response.model
         print(f"Model actually used: {model_used}")
-            
+    # add the content         
     final_response = response.choices[0].message["content"].strip()
     responses.append(final_response)
     return responses
@@ -113,25 +93,21 @@ def get_urls(limit):
 
    
 def main():
-
-    urls = get_urls(limit=2) #increase limit to comfort level
+    sep = ","
+    header = ["\"Title\"","\"Url\"", "\"Category\"","\"Confidence Level\""]
+    urls = get_urls(limit=50) #increase limit to comfort level
     if urls:
-       # write predictions to stdout and txt file, do something smarter later
+       # write predictions to csv file, do something smarter later
         predictions = classify(urls)
         
-        with open("classifications.json", "w") as f:
-            f.write("{ \"Predictions\" : \n\t[\n")
-            
+        with open("classifications.csv", "w") as f:
+            f.write(sep.join(header))
+            f.write("\n")    
             for idx, p in enumerate(predictions):
-                #sys.stdout.write("\t\t%s\n" % p)
-                f.write("\t\t%s\n" % p)
+                f.write(p)
                 
-                    
-                
-            f.write("\t]\n}")    
     else:
         print(f"No URLs to classify. Check log for errors.")
-
 
 if __name__ == "__main__":
     sys.exit(main())

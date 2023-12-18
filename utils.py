@@ -10,6 +10,7 @@ def num_tokens_for_message(message, model):
     if model in {
         "gpt-3.5-turbo-0613",
         "gpt-3.5-turbo-16k-0613",
+        "gpt-3.5-turbo-1106",
         "gpt-4-0314",
         "gpt-4-32k-0314",
         "gpt-4-0613",
