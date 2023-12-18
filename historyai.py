@@ -1,8 +1,8 @@
-
 import os
 import sys
 from contextlib import closing
-import openai
+
+from openai import OpenAI
 
 from historydb import HistoryDb
 from utils import num_tokens_for_message
@@ -11,48 +11,23 @@ from utils import num_tokens_for_message
 def classify(history_items):
     """Very naively classify the history items (url/title pairs) and provide confidence
     """
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-    model = os.getenv("OPENAI_MODEL")
-    print(f"Using model {model}")
-    
-   
-    system_content = r"""You are a content classifier. 
-    Predict the most likely content category for each URL and TITLE pair provided. I'll prompt ALL SENT when done. 
-    Do not attempt to access the URLs, just look at the URL text and TITLE text to classify.
-    
-    Structure your output as follows:
-    ===================================
-    Title: <TITLE>
-    Url: <URL>
-    Category: <CATEGORY>
-    Confidence Level: <CONFIDENCE LEVEL>
-
-    For example, I will provide you with the following information to classify: 
-
-    TITLE: Top 10 La Liga goalscorers of all time
-    URL: https://www.sportskeeda.com/football/la-liga-top-10-goalscorers-all-time
-
-    and you will responds as follows:
-
-    Title: Top 10 goals in La Liga in 2023
-    Url: https://www.sportskeeda.com/football/la-liga-top-10-goalscorers-all-time
-    Category: Sports
-    Confidence Level: High
-    """
-
+    client = OpenAI()
+    model = "gpt-3.5-turbo-1106"
+    temperature = 0.3
+    system_content = open("./system-prompt-csv.txt").read()
     messages = []
     responses = []
     num_tokens = 0
     max_tokens = 2000
 
     print(f"Rows found {len(history_items)}")
-    message = {"role": "system", "content": system_content}
+    sys_message = {"role": "system", "content": system_content}
+    sys_tokens = num_tokens_for_message(sys_message, model)
+    num_tokens += sys_tokens
+    messages.append(sys_message)
+    model_used = None
 
-    num_tokens += num_tokens_for_message(message, model)
-    messages.append(message)
-    
     for index, row in enumerate(history_items):
-        
          url, title = row
          content = f"URL: {url}, TITLE: {title}"
          message = {"role" : "user", "content" : content}
@@ -62,47 +37,85 @@ def classify(history_items):
              messages.append(message)
              
          else:
+            # We've reached already reached our token limit
             print(f"Token limit reached at {index}")
-            
-            response = openai.ChatCompletion.create(
-                    model = model
-                    ,temperature=0.6
-                    ,messages=messages 
+            # let's first get an intermediate response before moving on with this message
+            msg_count = len(messages)
+            print(f"Sending {msg_count} messages to OpenAI...")
+            response = client.chat.completions.create(
+                     model = model
+                    ,temperature=temperature
+                    ,messages=messages
+                    ,response_format={"type" : "text"}
                 )
             
-            r = response.choices[0].message['content'].strip()
+            # grab the contents of that response and append it to the responses list
+            r = response.choices[0].message.content
             responses.append(r)
-            num_tokens = num_tokens_for_message(message, model) # count from the last msg
+            num_tokens = num_tokens_for_message(message, model)
+            # message queue reset for the the next batch of messages, reset sys message and append last message
             messages = []
+            messages.append(sys_message)
+            num_tokens += sys_tokens
             messages.append(message)
   
-    messages.append({"role": "user", "content" : "ALL SENT"})
-    response = openai.ChatCompletion.create(model=model, messages=messages)
-    final_response = response.choices[0].message["content"].strip()
-    responses.append(final_response)
+    # no more messages to append
+    all_sent_message = ({"role": "user", "content" : "ALL SENT"})
+    num_tokens += num_tokens_for_message(all_sent_message, model)
+    messages.append(all_sent_message)
+    # get the last response (which is also the first if token limit was never reached)
+    msg_count = len(messages)
+    print(f"Sending {msg_count} messages to OpenAI...")
+    response = client.chat.completions.create(
+                    model = model
+                    ,temperature=temperature
+                    ,messages=messages
+                    ,response_format={"type" : "text"}
+                )
+    
+    if not model_used:
+        model_used = response.model
+        print(f"Model actually used: {model_used}")
+    
+    # add the content         
+    final_response = response.choices[0].message.content
+    responses.append(final_response)   
     return responses
 
 def get_urls(limit):
+    """Get the URL, Title pairs from the history database"""
     
     browser_profile_path  = os.getenv("EDGE_BROWSER_PROFILE_PATH")
     history_db = os.path.join(os.environ['HOME'], browser_profile_path, "History")
     
-    print("Attempt loading history DB {history_db}")
+    print(f"Attempt loading history DB {history_db}")
     h = HistoryDb(history_db)
     urls = h.get_urls(limit=limit)
     return urls
-    
-def main():
 
-    urls = get_urls(limit=10) #increase limit to comfort level
+def write_to_csv(csv_file, predictions, sep=","):
+    """"""
+    sep = ","
+    header = ["\"Title\"","\"Url\"", "\"Category\"","\"Confidence Level\""]
+    with open(csv_file, "w") as f:
+        f.write(sep.join(header))
+        f.write("\n")    
+        for idx, p in enumerate(predictions):
+            if not p.endswith("\n"):
+                p = "".join([p, "\n"])
+            f.write(p)
+       
+def main():
+    """The main train"""
+    
+    csv_file = "classifications.csv"
+    urls = get_urls(limit=5) # decrease or increase limit to comfort level
     if urls:
-       # write predictions to stdout, do something smarter later
+       # write predictions to csv file, do something smarter later
         predictions = classify(urls)
-        for p in predictions:
-            sys.stdout.write("%s\n" % p)
+        write_to_csv(csv_file, predictions)       
     else:
         print(f"No URLs to classify. Check log for errors.")
-
 
 if __name__ == "__main__":
     sys.exit(main())
