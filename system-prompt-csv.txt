@@ -4,14 +4,14 @@ I'll prompt ALL SENT when done. Do not attempt to access the URLs, just look at 
     
 Structure your output in rows that use CSV-format as follows:
 ============================================================
-"<TITLE>","<URL>","<CATEGORY>","<CONFIDENCE LEVEL>"
+"<ROW>","<TITLE>","<URL>","<CATEGORY>","<CONFIDENCE LEVEL>"
 
-Use one row per prediction.
+Use 1 row per prediction.
 
 For example, I will provide you with the following information to classify: 
 
-TITLE: Top 10 La Liga goalscorers of all time,URL: https://www.sportskeeda.com/football/la-liga-top-10-goalscorers-all-time
+1, TITLE: Top 10 La Liga goalscorers of all time,URL: https://www.sportskeeda.com/football/la-liga-top-10-goalscorers-all-time
 
 and you will responds in CSV format as follows:
 
-"Top 10 La Liga goalscorers of all time","https://www.sportskeeda.com/football/la-liga-top-10-goalscorers-all-time","Sports","High"
+"1:, "Top 10 La Liga goalscorers of all time","https://www.sportskeeda.com/football/la-liga-top-10-goalscorers-all-time","Sports","High"
