@@ -13,7 +13,7 @@ class HistoryDb:
         try:
             with closing(sqlite3.connect(self.history_db_uri, uri=True)) as connection:
                 with closing(connection.cursor()) as c:
-                    statement = "SELECT url, title FROM urls ORDER BY visit_count DESC LIMIT %(limit)s" % ({"limit" : limit})
+                    statement = "SELECT DISTINCT url, title FROM urls ORDER BY visit_count DESC LIMIT %(limit)s" % ({"limit" : limit})
                     rows = c.execute(statement).fetchall()
         except sqlite3.OperationalError as err:
             msg = f"Exception: sqllite3.OperationalError >> {err} <<. Make sure the browser is not running with the selected profile."
